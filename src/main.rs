@@ -135,8 +135,23 @@ fn main() {
         if let Ok(cert) = Certificate::from_der(&contents) {
             println!("{} decoded as a Certificate", arg);
             println!("Issuer: {}", cert.tbs_certificate.issuer);
+            if let Some(issuer_id) = cert.tbs_certificate.issuer_unique_id {
+                println!("\tID: {:?}", issuer_id);
+            }
             println!("Subject: {}", cert.tbs_certificate.subject);
+            if let Some(subject_id) = cert.tbs_certificate.subject_unique_id {
+                println!("\tID: {:?}", subject_id);
+            }
+            println!(
+                "Serial Nr: {}",
+                hex::encode(cert.tbs_certificate.serial_number.as_bytes())
+            );
             println!("Signing Algo: {}", oid_name(&cert.signature_algorithm.oid));
+            println!("Issue Date: {}", cert.tbs_certificate.validity.not_before);
+            println!(
+                "Expiration Date: {}",
+                cert.tbs_certificate.validity.not_after
+            );
             println!("CRL URL(s): {}", crl_urls(&cert.tbs_certificate).join(","));
 
             continue;
