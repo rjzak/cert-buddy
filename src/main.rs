@@ -6,6 +6,7 @@ use const_oid::db::rfc5280::ID_CE_CRL_REASONS;
 use const_oid::db::DB;
 use const_oid::ObjectIdentifier;
 use der::{Decode, Sequence};
+use rustls_pemfile::Item::X509Certificate;
 use x509::attr::Attribute;
 use x509::crl::{CertificateList, RevokedCert};
 use x509::ext::pkix::name::{DistributionPointName, GeneralName};
@@ -72,13 +73,13 @@ fn crl_urls(cert: &TbsCertificate) -> Vec<String> {
                                             urls_vec.push(uri.to_string());
                                         }
                                         x => {
-                                            eprintln!("unsupported {:?}", x);
+                                            eprintln!("unsupported {x:?}");
                                         }
                                     }
                                 }
                             }
                             x => {
-                                eprintln!("unsupported {:?}", x);
+                                eprintln!("unsupported {x:?}");
                             }
                         }
                     }
@@ -96,7 +97,7 @@ fn print_crl(crl: &CertificateList) {
 
     println!("This update: {}", crl.tbs_cert_list.this_update);
     if let Some(next_update) = crl.tbs_cert_list.next_update {
-        println!("Next update: {}", next_update);
+        println!("Next update: {next_update}");
     }
 
     if let Some(revoked) = &crl.tbs_cert_list.revoked_certificates {
@@ -117,6 +118,28 @@ fn print_crl(crl: &CertificateList) {
     }
 }
 
+fn print_cert(cert: &Certificate) {
+    println!("Issuer: {}", cert.tbs_certificate.issuer);
+    if let Some(issuer_id) = cert.tbs_certificate.issuer_unique_id {
+        println!("\tID: {issuer_id:?}");
+    }
+    println!("Subject: {}", cert.tbs_certificate.subject);
+    if let Some(subject_id) = cert.tbs_certificate.subject_unique_id {
+        println!("\tID: {subject_id:?}");
+    }
+    println!(
+        "Serial Nr: {}",
+        hex::encode(cert.tbs_certificate.serial_number.as_bytes())
+    );
+    println!("Signing Algo: {}", oid_name(&cert.signature_algorithm.oid));
+    println!("Issue Date: {}", cert.tbs_certificate.validity.not_before);
+    println!(
+        "Expiration Date: {}",
+        cert.tbs_certificate.validity.not_after
+    );
+    println!("CRL URL(s): {}", crl_urls(&cert.tbs_certificate).join(","));
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
@@ -127,59 +150,13 @@ fn main() {
         let contents = match std::fs::read(arg) {
             Ok(c) => c,
             Err(e) => {
-                eprintln!("Failed to read {}: {}", arg, e);
+                eprintln!("Failed to read {arg}: {e}");
                 continue;
             }
         };
 
-        if let Ok(cert) = Certificate::from_der(&contents) {
-            println!("{} decoded as a Certificate", arg);
-            println!("Issuer: {}", cert.tbs_certificate.issuer);
-            if let Some(issuer_id) = cert.tbs_certificate.issuer_unique_id {
-                println!("\tID: {:?}", issuer_id);
-            }
-            println!("Subject: {}", cert.tbs_certificate.subject);
-            if let Some(subject_id) = cert.tbs_certificate.subject_unique_id {
-                println!("\tID: {:?}", subject_id);
-            }
-            println!(
-                "Serial Nr: {}",
-                hex::encode(cert.tbs_certificate.serial_number.as_bytes())
-            );
-            println!("Signing Algo: {}", oid_name(&cert.signature_algorithm.oid));
-            println!("Issue Date: {}", cert.tbs_certificate.validity.not_before);
-            println!(
-                "Expiration Date: {}",
-                cert.tbs_certificate.validity.not_after
-            );
-            println!("CRL URL(s): {}", crl_urls(&cert.tbs_certificate).join(","));
-
-            continue;
-        }
-
-        if let Ok(crl) = CertificateList::from_der(&contents) {
-            println!("{} decoded as a Certificate Revocation List", arg);
-            print_crl(&crl);
-            continue;
-        }
-
-        if let Ok(crl_list) = CachedCrl::from_der(&contents) {
-            println!(
-                "{} decoded as a cached Certificate Revocation List file",
-                arg
-            );
-            println!("CRLs: {}", crl_list.crls.len());
-
-            for crl_pair in &crl_list.crls {
-                println!("--------\nURL: {}", crl_pair.url);
-                print_crl(&crl_pair.crl);
-            }
-
-            continue;
-        }
-
         if let Ok(csr) = CertReq::from_der(&contents) {
-            println!("{} decoded as a cached Certificate Signing Request", arg);
+            println!("{arg} decoded as a cached Certificate Signing Request");
 
             println!("Subject: {}", csr.info.subject);
             println!("Signing Algo: {}", oid_name(&csr.algorithm.oid));
@@ -198,6 +175,45 @@ fn main() {
             continue;
         }
 
-        eprintln!("Failed to decode {}", arg);
+        if let Ok(Some(cert)) =
+            rustls_pemfile::read_one(&mut std::io::Cursor::new(contents.clone()))
+        {
+            if let X509Certificate(cert_bytes) = cert {
+                if let Ok(cert) = Certificate::from_der(&cert_bytes) {
+                    println!("{arg} decoded as a Certificate");
+                    print_cert(&cert);
+                    continue;
+                }
+            } else {
+                eprintln!("{arg} wasn't a certificate");
+            }
+            continue;
+        }
+
+        if let Ok(cert) = Certificate::from_der(&contents) {
+            println!("{arg} decoded as a Certificate");
+            print_cert(&cert);
+            continue;
+        }
+
+        if let Ok(crl) = CertificateList::from_der(&contents) {
+            println!("{arg} decoded as a Certificate Revocation List");
+            print_crl(&crl);
+            continue;
+        }
+
+        if let Ok(crl_list) = CachedCrl::from_der(&contents) {
+            println!("{arg} decoded as a cached Certificate Revocation List file");
+            println!("CRLs: {}", crl_list.crls.len());
+
+            for crl_pair in &crl_list.crls {
+                println!("--------\nURL: {}", crl_pair.url);
+                print_crl(&crl_pair.crl);
+            }
+
+            continue;
+        }
+
+        eprintln!("Failed to decode {arg}");
     }
 }
