@@ -15,14 +15,14 @@ use x509::request::{CertReq, ExtensionReq};
 use x509::{Certificate, TbsCertificate};
 
 #[derive(Clone, Debug, Eq, PartialEq, Sequence)]
-pub struct CrlPair<'a> {
+pub struct CrlPair {
     pub url: String,
-    pub crl: CertificateList<'a>,
+    pub crl: CertificateList,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Sequence)]
-pub struct CachedCrl<'a> {
-    pub crls: Vec<CrlPair<'a>>,
+pub struct CachedCrl {
+    pub crls: Vec<CrlPair>,
 }
 
 fn oid_name(oid: &ObjectIdentifier) -> String {
@@ -36,7 +36,7 @@ fn crl_reason(revoked: &RevokedCert) -> String {
     if let Some(exts) = &revoked.crl_entry_extensions {
         for ext in exts {
             if ext.extn_id == ID_CE_CRL_REASONS {
-                return match CrlReason::from_der(ext.extn_value).unwrap() {
+                return match CrlReason::from_der(ext.extn_value.as_bytes()).unwrap() {
                     CrlReason::Unspecified => "Unspecified",
                     CrlReason::KeyCompromise => "Key compromise",
                     CrlReason::CaCompromise => "CA compromise",
@@ -62,7 +62,7 @@ fn crl_urls(cert: &TbsCertificate) -> Vec<String> {
     if let Some(extensions) = cert.extensions.as_ref() {
         for ext in extensions.iter() {
             if ext.extn_id == CRL_EXTN {
-                let urls = CrlDistributionPoints::from_der(ext.extn_value).unwrap();
+                let urls = CrlDistributionPoints::from_der(ext.extn_value.as_bytes()).unwrap();
                 for url in urls.0 {
                     if let Some(dist_pt) = url.distribution_point {
                         match dist_pt {
@@ -120,11 +120,11 @@ fn print_crl(crl: &CertificateList) {
 
 fn print_cert(cert: &Certificate) {
     println!("Issuer: {}", cert.tbs_certificate.issuer);
-    if let Some(issuer_id) = cert.tbs_certificate.issuer_unique_id {
+    if let Some(issuer_id) = &cert.tbs_certificate.issuer_unique_id {
         println!("\tID: {issuer_id:?}");
     }
     println!("Subject: {}", cert.tbs_certificate.subject);
-    if let Some(subject_id) = cert.tbs_certificate.subject_unique_id {
+    if let Some(subject_id) = &cert.tbs_certificate.subject_unique_id {
         println!("\tID: {subject_id:?}");
     }
     println!(
@@ -164,7 +164,7 @@ fn main() {
                 println!("Attribute OID: {}", oid_name(oid));
                 println!("Extensions: {}", values.len());
                 for any in values.iter() {
-                    let ereq: ExtensionReq<'_> = any.decode_into().unwrap();
+                    let ereq: ExtensionReq = any.decode_as().unwrap();
                     for ext in Vec::from(ereq) {
                         println!("Extension OID: {}", oid_name(&ext.extn_id));
                         println!("Extension Value: {}", hex::encode(ext.extn_value));

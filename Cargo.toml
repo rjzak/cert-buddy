@@ -6,13 +6,13 @@ license = "AGPL-3.0"
 
 [dependencies]
 const-oid = { version = "0.9.1", features = ["db"], default-features = false }
-der = { version = "0.6", features = ["std"], default-features = false }
+der = { version = "0.7", features = ["std"], default-features = false }
 hex = { version = "0.4.3", features = ["std"], default-features = false }
-p256 = { version = "0.12.0", features = ["ecdsa", "std", "pem"], default-features = false }
-p384 = { version = "0.12.0", features = ["ecdsa", "std", "pem"], default-features = false }
+p256 = { version = "0.13.2", features = ["ecdsa", "std", "pem"], default-features = false }
+p384 = { version = "0.13.0", features = ["ecdsa", "std", "pem"], default-features = false }
 rsa = { version = "0.8.1", features = ["std"], default-features = false }
 rustls-pemfile = { version = "1.0.2", default-features = false }
-sec1 = { version = "0.3", features = ["std", "pkcs8"], default-features = false }
+sec1 = { version = "0.7.2", features = ["std", "pkcs8"], default-features = false }
 sha2 = { version = "^0.10.2", default-features = false }
-spki = { version = "0.6", default-features = false }
-x509 = { version = "0.1", package = "x509-cert", features = ["std"], default-features = false }
+spki = { version = "0.7.1", default-features = false }
+x509 = { version = "0.2.1", package = "x509-cert", features = ["std"], default-features = false }
