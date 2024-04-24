@@ -2,7 +2,7 @@
 name = "cert_buddy"
 version = "0.1.0"
 edition = "2021"
-license = "AGPL-3.0"
+license = "Apache-2.0"
 
 [dependencies]
 const-oid = { version = "0.9.2", features = ["db"], default-features = false }
